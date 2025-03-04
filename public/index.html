@@ -51,7 +51,10 @@
     <button id="clearButton">Clear</button>
 
     <script>
+
+        // for local use
         // const socket = new WebSocket('ws://localhost:8080');
+        // for hosting
         const socket = new WebSocket(location.origin.replace(/^http/, 'ws'));
 
         socket.onopen = () => {
@@ -59,14 +62,58 @@
         };
 
         socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
+    const data = JSON.parse(event.data);
 
-            if (data.type === "history") {
-                data.data.forEach(drawFromServer); 
-            } else {
-                drawFromServer(data);
-            }
-        };
+    if (data.type === "history") {
+        data.data.forEach(drawFromServer);
+    } else if (data.type === "notification") {
+        updateStatusBar(data.usersConnected);
+        showPopupMessage(data.message);
+    } else {
+        drawFromServer(data);
+    }
+};
+
+// Function to update the status bar with the number of online users
+function updateStatusBar(usersConnected) {
+    const statusBar = document.querySelector(".status-bar");
+    statusBar.textContent = `Users Online: ${usersConnected}`;
+}
+
+// Function to show a temporary pop-up message
+function showPopupMessage(message) {
+    const popup = document.createElement("div");
+    popup.className = "popup-message";
+    popup.textContent = message;
+    
+    document.body.appendChild(popup);
+
+    setTimeout(() => {
+        popup.remove();
+    }, 1000); // Remove after 3 seconds
+}
+
+// Add a status bar to your HTML to show the number of online users
+document.body.insertAdjacentHTML("beforeend", '<div class="status-bar">Users Online: 0</div>');
+
+// Add CSS for pop-up messages
+const style = document.createElement("style");
+style.innerHTML = `
+    .popup-message {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: black;
+        color: white;
+        padding: 10px 20px;
+        font-size: 18px;
+        border-radius: 5px;
+        opacity: 0.9;
+        transition: opacity 0.5s;
+    }
+`;
+document.head.appendChild(style);
 
         const canvas = document.getElementById("myCanvas");
         const ctx = canvas.getContext("2d");
