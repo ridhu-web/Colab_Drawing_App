@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Drawing Application</title>
+    <style>
+        body {
+            margin: 3px;
+            padding: 6px;
+            font-size: 22px;
+        }
+        canvas {
+            border: 2px solid black;
+        }
+        .toolbar button,
+        #clearButton {
+            padding: 15px;
+            font-size: 24px;
+        }
+        .toolbar {
+            margin-bottom: 12px;
+        }
+        .toolbar button {
+            padding: 10px;
+            margin-right: 7px;
+            background: white;
+            color: black;
+            border: none;
+            cursor: pointer;
+        }
+        .status-bar {
+            padding: 7px;
+            background: white;
+            color: black;
+        }
+    </style>
+</head>
+<body>
+    <h1>Real-Time Collaborative Drawing App</h1>
+    <div class="toolbar">
+        <button id="brushTool">Brush</button>
+        <input type="color" id="colorPicker" />
+        <select id="brushSize">
+            <option value="1">1px</option>
+            <option value="3">3px</option>
+            <option value="5">5px</option>
+            <option value="8">8px</option>
+            <option value="12">12px</option>
+        </select>
+    </div>
+    <canvas id="myCanvas" width="700" height="400"></canvas>
+    <button id="clearButton">Clear</button>
+
+    <script>
+        const socket = new WebSocket('ws://localhost:8080');
+
+        socket.onopen = () => {
+            console.log("Connected to WebSocket server");
+        };
+
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            if (data.type === "history") {
+                data.data.forEach(drawFromServer); 
+            } else {
+                drawFromServer(data);
+            }
+        };
+
+        const canvas = document.getElementById("myCanvas");
+        const ctx = canvas.getContext("2d");
+
+        let isDrawing = false;
+        let color = "#000000";
+        let brushSize = 2;
+        let selectedTool = "brush"; 
+
+        function startDrawing(event) {
+            isDrawing = true;
+            const x = event.clientX - canvas.offsetLeft;
+            const y = event.clientY - canvas.offsetTop;
+
+            const startData = { type: "start", x, y, color, brushSize, tool: selectedTool };
+            socket.send(JSON.stringify(startData));
+
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        }
+
+        function draw(event) {
+            if (!isDrawing) return;
+
+            const x = event.clientX - canvas.offsetLeft;
+            const y = event.clientY - canvas.offsetTop;
+
+            ctx.lineTo(x, y);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = brushSize;
+            ctx.stroke();
+
+
+            const drawData = { type: "draw", x, y, color, brushSize, tool: selectedTool };
+            socket.send(JSON.stringify(drawData));
+        }
+
+        function stopDrawing() {
+            isDrawing = false;
+        }
+
+        canvas.addEventListener("mousedown", startDrawing);
+        canvas.addEventListener("mousemove", draw);
+        canvas.addEventListener("mouseup", stopDrawing);
+        canvas.addEventListener("mouseout", stopDrawing);
+
+
+        function drawFromServer(data) {
+            ctx.strokeStyle = data.color;
+            ctx.lineWidth = data.brushSize;
+
+            if (data.tool === "eraser") {
+                ctx.globalCompositeOperation = "destination-out"; 
+            } else {
+                ctx.globalCompositeOperation = "source-over"; 
+            }
+
+            if (data.type === "start") {
+                ctx.beginPath();
+                ctx.moveTo(data.x, data.y);
+            } else if (data.type === "draw") {
+                ctx.lineTo(data.x, data.y);
+                ctx.stroke();
+            } else if (data.type === "clear") {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        document.getElementById("clearButton").addEventListener("click", function () {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            socket.send(JSON.stringify({ type: "clear" })); 
+        });
+
+        document.getElementById("colorPicker").addEventListener("input", function () {
+            color = this.value;
+        });
+
+        document.getElementById("brushSize").addEventListener("change", function () {
+            brushSize = parseInt(this.value, 10);
+        });
+
+    </script>
+</body>
+</html>
