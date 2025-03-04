@@ -1,11 +1,21 @@
+const express = require("express");
+const http = require("http");
 const WebSocket = require("ws");
-const wss = new WebSocket.Server({ port: 8080 });
+const path = require("path");
+
+const app = express();
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
 
 let drawingHistory = []; 
+
+// Serve static frontend files
+app.use(express.static(path.join(__dirname, "public")));
 
 wss.on("connection", ws => {
     console.log(`New client connected. Total Clients: ${wss.clients.size}`);
 
+    // Send drawing history to new client
     ws.send(JSON.stringify({ type: "history", data: drawingHistory }));
 
     ws.on("message", (message) => {
@@ -31,4 +41,6 @@ wss.on("connection", ws => {
     ws.on("close", () => console.log(`Client disconnected. Total Clients: ${wss.clients.size}`));
 });
 
-console.log("WebSocket server running on ws://localhost:8080");
+// Use PORT from Render or default to 8080
+const PORT = process.env.PORT || 8080;
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
